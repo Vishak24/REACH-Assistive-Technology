@@ -32,7 +32,7 @@ ReachCore → HapticCue (Haptic Language v1.0, one per frame) → HapticPlayer (
 | Depth (optional) | ARCore depth mode, with a validation gate. Without valid depth, guidance is announced as direction-only. |
 | Haptics | A versioned haptic language mapped to BLE (Nordic UART) commands for the band. |
 
-**Measured on a Galaxy A15** (recorded in the notes below): two-hand tracking costs about 74–96 ms per frame (median), about 9–11 fps overall.
+**Measured on a Galaxy A15** (recorded in the notes below): two-hand tracking costs about 74–96 ms per frame (median), about 9–11 fps overall, measured with no hands in view.
 
 ## Repository layout
 
@@ -48,7 +48,7 @@ scripts/    model download
 ## Status and limits
 
 - **Hackathon MVP.** Tested on a Samsung Galaxy A15 5G. The detailed notes below record what was measured and what is still unvalidated, such as fingertip-depth contact detection, which stays off.
-- **Firmware:** `firmware/reach_haptic_band/` is a reviewed rewrite of the band controller's scheduler. It has not been compiled or flashed (see the header comment). The firmware used on the working band is not in this repository.
+- **Firmware:** `firmware/reach_haptic_band/` is a proposed rewrite of the band controller's scheduler, written for review. It has not been compiled or flashed (see the header comment). The firmware used on the working band is not in this repository.
 - **Tests:** backend `pytest` runs in CI. The Android JVM unit tests (`./gradlew testDebugUnitTest`) need the Android SDK and are not run in CI.
 
 ---
