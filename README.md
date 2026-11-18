@@ -1,10 +1,14 @@
-# REACH — smartphone spatial assistant (hackathon MVP)
+# REACH: hand guidance to everyday objects for visually impaired users
 
-Chest-mounted Samsung Galaxy A15 5G guides a visually impaired user's hand to a
-requested everyday object (bottle, laptop, book, backpack, handbag, cup) using voice → Claude intent → local detection → MediaPipe
-hand tracking → deterministic spatial guidance → TTS.
+**First place, EMBEDX 2026.**
 
-**Claude is called once per utterance. The real-time loop is 100% on-device.**
+REACH helps a visually impaired person find an object ("find my bottle") and guides their hand to it. It uses spoken directions and a vibration band. A chest-mounted Android phone does the seeing: object detection, hand tracking and spatial guidance all run on-device. A two-motor ESP32-S3 band gives haptic cues over BLE.
+
+Unlike tools that only *describe* a scene, REACH closes the loop to the user's hand. It also refuses to overclaim: it never says "reached" from a 2D overlap, it says when distance is unavailable, and it pauses guidance when it is unsure which hand or object it is tracking.
+
+**Team.** A two-person project. Vishal G led the team and drove the software development, using Claude Code (AI-assisted development). A teammate built the hardware.
+
+## How it works
 
 ```
 Voice → Claude (backend proxy, once) → target locked
@@ -18,6 +22,40 @@ Rotation sensor (game rotation vector) → TurnMonitor: turned away from where t
 Utterance → Conversation (local intents + short-lived task memory) → Claude only for new object requests
 ReachCore → HapticCue (Haptic Language v1.0, one per frame) → HapticPlayer (priority, timing) → BleBand (BLE NUS) → ESP32-S3 band
 ```
+
+| Stage | Implementation |
+|---|---|
+| Intent | Voice → one Claude call per utterance via a small FastAPI proxy (`backend/`). Offline keyword fallback if the network fails. |
+| Detection | EfficientDet-Lite0 (TFLite, COCO) on its own thread, with a candidate tracker that needs repeated, consistent evidence before locking a target. Supported targets: bottle, laptop, book, backpack, handbag, cup. |
+| Hands | MediaPipe Hand Landmarker (two hands). The user enrols each hand once with a gesture, and guidance never switches to another person's hand. |
+| Guidance | A single state machine (`ReachCore`) with session numbers, so late detector or LLM results can't redirect guidance. Smoothing, hysteresis and throttling stop spoken cues from chattering. |
+| Depth (optional) | ARCore depth mode, with a validation gate. Without valid depth, guidance is announced as direction-only. |
+| Haptics | A versioned haptic language mapped to BLE (Nordic UART) commands for the band. |
+
+**Measured on a Galaxy A15** (recorded in the notes below): two-hand tracking costs about 74–96 ms per frame (median), about 9–11 fps overall.
+
+## Repository layout
+
+```
+android/    Kotlin app: camera, grounding, hand tracking, spatial guidance, speech, haptics + JVM unit tests
+backend/    FastAPI proxy for the Claude intent call (API key stays on the server)
+firmware/   ESP32-S3 band controller sketch (see status below)
+dataset/    category schema, seed annotations, evaluation and training workflow
+tools/      session capture, on-device evaluation, dataset split, detector training scripts
+scripts/    model download
+```
+
+## Status and limits
+
+- **Hackathon MVP.** Tested on a Samsung Galaxy A15 5G. The detailed notes below record what was measured and what is still unvalidated, such as fingertip-depth contact detection, which stays off.
+- **Firmware:** `firmware/reach_haptic_band/` is a reviewed rewrite of the band controller's scheduler. It has not been compiled or flashed (see the header comment). The firmware used on the working band is not in this repository.
+- **Tests:** backend `pytest` runs in CI. The Android JVM unit tests (`./gradlew testDebugUnitTest`) need the Android SDK and are not run in CI.
+
+---
+
+# Engineering notes
+
+The rest of this document is the working reference used during development: setup, milestone tests, demo script and design details per subsystem.
 
 ## Setup (15 min)
 
